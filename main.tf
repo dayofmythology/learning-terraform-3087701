@@ -33,6 +33,9 @@ module "blog_vpc" {
   }
 }
 
+
+
+
 resource "aws_instance" "blog" {
   ami           = data.aws_ami.app_ami.id
   instance_type = var.instance_type
@@ -41,6 +44,48 @@ resource "aws_instance" "blog" {
   subnet_id = module.blog_vpc.public_subnets [0]
   tags = {
     Name = "HelloWorld"
+  }
+}
+
+
+module "alb" {
+  source = "terraform-aws-modules/alb/aws"
+
+  name    = "blog-alb"
+  vpc_id  = module.blog_vpc.vpc_id
+  subnets = module.blog_vpc.public_subnets
+
+  # Security Groups
+  security_groups = module.blog_sg.security_group_id 
+
+  listeners = {
+    ex-http-https-redirect = {
+      port     = 80
+      protocol = "HTTP"
+      redirect = {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
+    }
+  }
+
+  target_groups = {
+      name_prefix      = "blog-"
+      protocol         = "HTTP"
+      port             = 80
+      target_type      = "instance"
+      targets = {
+        my_target = {
+          target_id = aws_instance.blog.id
+          port = 80
+        }
+      }
+  }
+
+  tags = {
+    Environment = "Development"
+    Project     = "Example"
   }
 }
 
